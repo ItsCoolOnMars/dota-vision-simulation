@@ -3,3 +3,5 @@ config.json
 .npmrc
 .cursor/
 perf.log
+build/
+# Keep dist folder in git for npm package compatibility
