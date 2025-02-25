@@ -1,10 +1,12 @@
 # dota-vision-simulation
 
+This project is a fork of [dota-vision-simulation](https://github.com/devilesk/dota-vision-simulation)
+
 ## Example
 
 View demo in www/ folder and src/app.js for source code.
 
-See [dota-interactive-map](https://github.com/devilesk/dota-interactive-map) for another application.
+See [dota-interactive-map](https://github.com/leamare/dota-interactive-map) for another application.
 
 ## Usage
 
@@ -45,4 +47,4 @@ vs.initialize(mapImageDataPath, onReadyCallback);
 
 ### Data
 
-`worlddata.json` and `map_data.png` come from [dota-map-coordinates](https://github.com/devilesk/dota-map-coordinates)
+`worlddata.json` and `map_data.png` come from [dota-map-coordinates](https://github.com/leamare/dota-map-coordinates)
