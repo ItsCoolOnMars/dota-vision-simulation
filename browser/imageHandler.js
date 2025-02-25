@@ -1,4 +1,4 @@
-var PNG = require('png-js');
+var PNG = require('pngjs');
 
 function ImageHandler(imagePath) {
     this.imagePath = imagePath;

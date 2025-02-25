@@ -9,5 +9,8 @@ var paths = [
     normalizedPath + '/**/*'
 ]
 console.log(paths);
-del.sync(paths, {force: true});
-execSync('cp -r dist/* ' + normalizedPath);
+// Updated for del v8.x API
+(async () => {
+    await del(paths, {force: true});
+    execSync('cp -r dist/* ' + normalizedPath);
+})();

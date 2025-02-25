@@ -1,4 +1,5 @@
-var Jimp = require("jimp");
+// For Jimp v1.6.0
+const { Jimp } = require("jimp");
 
 function ImageHandler(imagePath) {
     this.imagePath = imagePath;
@@ -7,13 +8,16 @@ function ImageHandler(imagePath) {
 }
 ImageHandler.prototype.load = function (callback) {
     var self = this;
-    Jimp.read(this.imagePath).then(function (image) {
-        self.image = image;
-        if (self.enabled) callback();
-    }).catch(function (err) {
-        console.log('error', err);
-        if (self.enabled) callback(err);
-    });
+    // Using the correct API for Jimp v1.x
+    Jimp.read(this.imagePath)
+        .then(function (image) {
+            self.image = image;
+            if (self.enabled) callback();
+        })
+        .catch(function (err) {
+            console.log('error', err);
+            if (self.enabled) callback(err);
+        });
 }
 ImageHandler.prototype.disable = function () {
     this.enabled = false;

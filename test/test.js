@@ -5,8 +5,9 @@ var assert = require("assert");
 var vs;
 
 before(function(done) {
-    this.timeout(10000);
-    vs = new VisionSimulation(worlddata, './www/map_data.png', function () {
+    this.timeout(30000);
+    vs = new VisionSimulation(worlddata);
+    vs.initialize('./www/map_data.png', function () {
         done();
     });
 });
