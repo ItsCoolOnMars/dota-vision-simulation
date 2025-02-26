@@ -1,3 +1,11 @@
+/**
+ * Creates a Dota 2 vision simulation application with interactive visualization.
+ * This is the main entry point for the demo application that visualizes the line of sight
+ * and vision mechanics from Dota 2 using HTML canvas elements.
+ * 
+ * @param {string} mapImageDataPath - Path to the map image data used for vision calculations
+ * @returns {void}
+ */
 function App(mapImageDataPath) {
     var worlddata = require("./worlddata.json");
     var VisionSimulation = require("./vision-simulation");
@@ -27,7 +35,12 @@ function App(mapImageDataPath) {
     vs.initialize(mapImageDataPath, function () {console.log('ready 1');});
     vs.initialize(mapImageDataPath, onReady);
     
-
+    /**
+     * Resizes all canvas elements based on the current zoom level and grid dimensions.
+     * Adjusts canvas size and container dimensions to match the current CELL size and grid dimensions.
+     * 
+     * @returns {void}
+     */
     function resize() {
         canvas.width = CELL[0]*vs.gridWidth;
         canvas.height = CELL[1]*vs.gridHeight;
@@ -39,6 +52,13 @@ function App(mapImageDataPath) {
         canvasContainer.style.height = CELL[1]*vs.gridHeight + 'px';
     }
 
+    /**
+     * Draws the background map with special terrain features highlighted.
+     * Renders the base map image and overlays different colored squares for gridnav blockers,
+     * ward-restricted areas, and fog of war blockers.
+     * 
+     * @returns {void}
+     */
     function drawBackground() {
         backgroundCtx.drawImage(vs.imageHandler.canvas, 0, 0, vs.gridWidth, vs.gridHeight, 0, 0, CELL[0]*vs.gridWidth, CELL[1]*vs.gridHeight);
         
@@ -64,6 +84,12 @@ function App(mapImageDataPath) {
         }
     }
 
+    /**
+     * Renders all trees and stumps on the dedicated tree canvas layer.
+     * Uses different colors to represent standing trees (green) and cut trees/stumps (brown).
+     * 
+     * @returns {void}
+     */
     function drawTrees() {
         for (var k in vs.tree_relations) {
             var pt = vs.key2pt(k);
@@ -80,6 +106,15 @@ function App(mapImageDataPath) {
         }
     }
 
+    /**
+     * Redraws the vision layer showing visible areas based on the current position.
+     * Renders the field of view from a specific grid coordinate, highlighting visible areas
+     * and showing elevation walls in debug mode.
+     * 
+     * @param {number} gX - The x-coordinate in the grid to calculate vision from
+     * @param {number} gY - The y-coordinate in the grid to calculate vision from
+     * @returns {void}
+     */
     function redraw(gX, gY) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         var cpt = vs.GridXYtoImageXY(gX, gY);
@@ -111,12 +146,26 @@ function App(mapImageDataPath) {
         }
     }
 
+    /**
+     * Converts mouse event coordinates to grid coordinates.
+     * Transforms client pixel coordinates to the grid coordinate system used by the vision simulation.
+     * 
+     * @param {MouseEvent} e - The mouse event containing client coordinates
+     * @returns {Object} An object with x and y properties representing grid coordinates
+     */
     function getCoords(e) {
         var x = e.clientX+document.body.scrollLeft - canvasContainer.offsetLeft - canvasContainer.clientLeft;
         var y = e.clientY+document.body.scrollTop - canvasContainer.offsetTop - canvasContainer.clientTop
         return vs.ImageXYtoGridXY(Math.floor(x/CELL[0]), Math.floor(y/CELL[1]));
     }
 
+    /**
+     * Callback function executed when the vision simulation is ready.
+     * Sets up the initial display and binds event listeners for interactive visualization.
+     * 
+     * @param {Error|null} err - Error object if initialization failed, null on success
+     * @returns {void}
+     */
     function onReady(err) {
         if (err) {
             console.log(err);

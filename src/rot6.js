@@ -1,12 +1,20 @@
-/*
-	This is rot.js, the ROguelike Toolkit in JavaScript.
-	Version 0.6~dev, generated on Tue Mar 17 16:16:31 CET 2015.
-*/
 /**
- * @namespace Top-level ROT namespace
+ * ROT.js - The ROguelike Toolkit in JavaScript
+ * Version 0.6~dev
+ * 
+ * This library provides tools for roguelike game development, including
+ * field of view (FOV) calculations and directional constants.
+ */
+
+/**
+ * @namespace ROT
+ * @description Top-level namespace for the ROguelike Toolkit
  */
 var ROT = {
-	/** Directional constants. Ordering is important! */
+	/** 
+     * @property {Object} DIRS - Directional constants for different topologies
+     * @description Contains directional vectors for 4-way, 6-way, and 8-way movement
+     */
 	DIRS: {
 		"4": [
 			[ 0, -1],
@@ -34,33 +42,53 @@ var ROT = {
 		]
 	}
 };
+
 /**
- * Always positive modulus
- * @param {int} n Modulus
- * @returns {int} this modulo n
+ * Always positive modulus operation
+ * Unlike JavaScript's % operator, this always returns a positive number
+ * 
+ * @function Number.prototype.mod
+ * @param {number} n - The divisor
+ * @returns {number} A positive modulo n result
  */
 Number.prototype.mod = function(n) {
 	return ((this%n)+n)%n;
 }
-if (!Object.create) {  
-	/**
-	 * ES5 Object.create
-	 */
+
+/**
+ * ES5 Object.create polyfill
+ * Creates a new object with the specified prototype object
+ * 
+ * @function Object.create
+ * @param {Object} o - The object to use as prototype
+ * @returns {Object} A new object with the specified prototype
+ */
+if (!Object.create) {  m
 	Object.create = function(o) {  
 		var tmp = function() {};
 		tmp.prototype = o;
 		return new tmp();
 	};  
 }  
+
 /**
  * Sets prototype of this function to an instance of parent function
- * @param {function} parent
+ * Utility method for implementing inheritance
+ * 
+ * @function Function.prototype.extend
+ * @param {Function} parent - The parent constructor function
+ * @returns {Function} This function, now inheriting from parent
  */
 Function.prototype.extend = function(parent) {
 	this.prototype = Object.create(parent.prototype);
 	this.prototype.constructor = this;
 	return this;
 }
+
+/**
+ * Polyfill for requestAnimationFrame and cancelAnimationFrame
+ * Provides cross-browser compatibility for animation functions
+ */
 if (typeof window != "undefined") {
 	window.requestAnimationFrame =
 		window.requestAnimationFrame
@@ -78,11 +106,13 @@ if (typeof window != "undefined") {
 		|| window.msCancelAnimationFrame
 		|| function(id) { return clearTimeout(id); };
 }
+
 /**
- * @class Abstract FOV algorithm
- * @param {function} lightPassesCallback Does the light pass through x,y?
- * @param {object} [options]
- * @param {int} [options.topology=8] 4/6/8
+ * @class ROT.FOV
+ * @description Abstract FOV (Field of Vision) algorithm class
+ * @param {Function} lightPassesCallback - Function that determines if light passes through a cell
+ * @param {Object} [options] - Configuration options
+ * @param {number} [options.topology=8] - Topology to use (4, 6, or 8)
  */
 ROT.FOV = function(lightPassesCallback, options) {
 	this._lightPasses = lightPassesCallback;
@@ -94,18 +124,26 @@ ROT.FOV = function(lightPassesCallback, options) {
 
 /**
  * Compute visibility for a 360-degree circle
- * @param {int} x
- * @param {int} y
- * @param {int} R Maximum visibility radius
- * @param {function} callback
+ * Abstract method to be implemented by subclasses
+ * 
+ * @function ROT.FOV.prototype.compute
+ * @param {number} x - Center X coordinate
+ * @param {number} y - Center Y coordinate
+ * @param {number} R - Maximum visibility radius
+ * @param {Function} callback - Called for each visible cell
  */
 ROT.FOV.prototype.compute = function(x, y, R, callback) {}
 
 /**
  * Return all neighbors in a concentric ring
- * @param {int} cx center-x
- * @param {int} cy center-y
- * @param {int} r range
+ * Used to determine cells at a specific distance from the center
+ * 
+ * @function ROT.FOV.prototype._getCircle
+ * @param {number} cx - Center X coordinate
+ * @param {number} cy - Center Y coordinate
+ * @param {number} r - Radius (distance from center)
+ * @returns {Array} Array of [x,y] coordinates forming a circle
+ * @private
  */
 ROT.FOV.prototype._getCircle = function(cx, cy, r) {
 	var result = [];
@@ -152,15 +190,29 @@ ROT.FOV.prototype._getCircle = function(cx, cy, r) {
 
 	return result;
 }
+
 /**
- * @class Precise shadowcasting algorithm
- * @augments ROT.FOV
+ * @class ROT.FOV.PreciseShadowcasting
+ * @description Precise shadowcasting algorithm for field of view calculations
+ * @extends ROT.FOV
+ * @param {Function} lightPassesCallback - Function that determines if light passes through a cell
+ * @param {Object} [options] - Configuration options
  */
 ROT.FOV.PreciseShadowcasting = function(lightPassesCallback, options) {
 	ROT.FOV.call(this, lightPassesCallback, options);
 }
 ROT.FOV.PreciseShadowcasting.extend(ROT.FOV);
 
+/**
+ * Compute visibility for a 360-degree circle using the precise shadowcasting algorithm
+ * 
+ * @function ROT.FOV.PreciseShadowcasting.prototype.compute
+ * @param {number} x - Center X coordinate
+ * @param {number} y - Center Y coordinate
+ * @param {number} R - Maximum visibility radius
+ * @param {Function} callback - Called for each visible cell with (x, y, r, visibility)
+ * @returns {number} Total number of neighbors processed
+ */
 ROT.FOV.PreciseShadowcasting.prototype.compute = function(x, y, R, callback) {
 	/* this place is always visible */
 	callback(x, y, 0, 1);
@@ -339,10 +391,16 @@ ROT.FOV.PreciseShadowcasting.prototype.compute = function(x, y, R, callback) {
 }
 
 /**
- * @param {int[2]} A1 arc start
- * @param {int[2]} A2 arc end
- * @param {bool} blocks Does current arc block visibility?
- * @param {int[][]} SHADOWS list of active shadows
+ * Check if a point is visible by examining shadows
+ * 
+ * @function ROT.FOV.PreciseShadowcasting.prototype._checkVisibility
+ * @param {number} b - Angle to the target point
+ * @param {number} A1 - Start angle of the current arc
+ * @param {number} A2 - End angle of the current arc
+ * @param {boolean} blocks - Whether the current arc blocks visibility
+ * @param {Array} SHADOWS - List of active shadows
+ * @returns {boolean} True if the point is visible
+ * @private
  */
 ROT.FOV.PreciseShadowcasting.prototype._checkVisibility = function(b, A1, A2, blocks, SHADOWS) {
     ////console.log('_checkVisibility', b, A1, A2, blocks, SHADOWS);
@@ -383,6 +441,17 @@ ROT.FOV.PreciseShadowcasting.prototype._checkVisibility = function(b, A1, A2, bl
     return visible;
 }
 
+/**
+ * Merge new shadow arc into the existing shadows list
+ * 
+ * @function ROT.FOV.PreciseShadowcasting.prototype._mergeShadows
+ * @param {number} b - Angle to the target point
+ * @param {number} A1 - Start angle of the new shadow arc
+ * @param {number} A2 - End angle of the new shadow arc
+ * @param {boolean} blocks - Whether the current arc blocks visibility
+ * @param {Array} SHADOWS - List of active shadows to merge into
+ * @private
+ */
 ROT.FOV.PreciseShadowcasting.prototype._mergeShadows = function(b, A1, A2, blocks, SHADOWS) {
     ////console.log('merging', b, A1, A2);
     // check if target first edge is inside a shadow or which shadows it is between
@@ -488,6 +557,15 @@ ROT.FOV.PreciseShadowcasting.prototype._mergeShadows = function(b, A1, A2, block
     }
 }
 
+/**
+ * Check if angle A1 is before angle A2
+ * Handles special cases for angles crossing the 0/2π boundary
+ * 
+ * @function isBefore
+ * @param {number} A1 - First angle
+ * @param {number} A2 - Second angle
+ * @returns {boolean} True if A1 comes before A2
+ */
 function isBefore(A1, A2) {
     if (A1 > 0 && A2 < 0) { // A1 in bottom half, A2 in top half
         return true;
@@ -500,10 +578,28 @@ function isBefore(A1, A2) {
     }
 }
 
+/**
+ * Check if angle A1 is after angle A2
+ * 
+ * @function isAfter
+ * @param {number} A1 - First angle
+ * @param {number} A2 - Second angle
+ * @returns {boolean} True if A1 comes after A2
+ */
 function isAfter(A1, A2) {
     return !isBefore(A1, A2);
 }
 
+/**
+ * Check if angle b is between angles A1 and A2
+ * Handles special cases for angle ranges that cross the 0/2π boundary
+ * 
+ * @function isBetween
+ * @param {number} b - Angle to check
+ * @param {number} A1 - Start of angle range
+ * @param {number} A2 - End of angle range
+ * @returns {boolean} True if b is between A1 and A2
+ */
 function isBetween(b, A1, A2) {
     if (A1 < A2) {
         return ((A1 <= b) && (b <= A2));
@@ -513,6 +609,13 @@ function isBetween(b, A1, A2) {
     }
 }
 
+/**
+ * Normalize an angle to the range [-π, π]
+ * 
+ * @function normalize
+ * @param {number} x - Angle to normalize
+ * @returns {number} Normalized angle in the range [-π, π]
+ */
 function normalize(x) {
     if (x > Math.PI) {
         return -(2 * Math.PI - x);
@@ -525,6 +628,15 @@ function normalize(x) {
     }
 }
 
+/**
+ * Calculate the angular difference between two angles
+ * Handles special cases for angles in different hemispheres
+ * 
+ * @function diff
+ * @param {number} A1 - First angle
+ * @param {number} A2 - Second angle
+ * @returns {number} Angular difference between A1 and A2
+ */
 function diff(A1, A2) {
     if (A1 > 0 && A2 < 0) { // A1 in bottom half, A2 in top half
         return Math.abs((Math.PI - A1) - (-Math.PI - A2));
@@ -550,6 +662,13 @@ function diff(A1, A2) {
     }
 }
 
+/**
+ * Calculate the sum of angular differences for all shadow arcs
+ * 
+ * @function diff_sum
+ * @param {Array} SHADOWS - List of shadow arcs
+ * @returns {number} Sum of all angular differences
+ */
 function diff_sum(SHADOWS) {
     var sum = 0;
     for (var i = 0; i < SHADOWS.length; i++) {

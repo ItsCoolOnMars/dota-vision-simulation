@@ -1,7 +1,28 @@
+/**
+ * Vision Simulation Module for Dota 2
+ * 
+ * Provides a simulation of the vision and line of sight mechanics in Dota 2,
+ * including elevation-based vision, trees, and other vision-blocking entities.
+ * 
+ * @module vision-simulation
+ */
 var ImageHandler = require("./imageHandler.js");
 var ROT = require("./rot6.js");
 
+/**
+ * Cache for key to point conversions to improve performance
+ * @type {Object}
+ * @private
+ */
 var key2pt_cache = {};
+
+/**
+ * Converts a coordinate key string to a point object
+ * Uses cached results when available for performance
+ * 
+ * @param {string} key - Coordinate key in format "x,y"
+ * @returns {Object} Point object with x, y, and key properties
+ */
 function key2pt(key) {
     if (key in key2pt_cache) return key2pt_cache[key];
     var p = key.split(',').map(function (c) { return parseInt(c) });
@@ -10,18 +31,46 @@ function key2pt(key) {
     return pt;
 }
 
+/**
+ * Converts x,y coordinates to a key string
+ * 
+ * @param {number} x - X coordinate
+ * @param {number} y - Y coordinate
+ * @returns {string} Coordinate key in format "x,y"
+ */
 function xy2key(x, y) {
     return x + "," + y;
 }
 
+/**
+ * Creates a point object from x,y coordinates
+ * 
+ * @param {number} x - X coordinate
+ * @param {number} y - Y coordinate
+ * @returns {Object} Point object with x, y, and key properties
+ */
 function xy2pt(x, y) {
     return {x: x, y: y, key: x + "," + y};
 }
 
+/**
+ * Extracts a key string from a point object
+ * 
+ * @param {Object} pt - Point object with x and y properties
+ * @returns {string} Coordinate key in format "x,y"
+ */
 function pt2key(pt) {
     return pt.x + "," + pt.y;
 }
 
+/**
+ * Generates a set of walls based on elevation data
+ * Identifies cells with elevation differences that form visual barriers
+ * 
+ * @param {Object} data - Elevation grid data mapping keys to points with z-values
+ * @param {number} elevation - Reference elevation value to compare against
+ * @returns {Object} Map of coordinate keys to points representing elevation walls
+ */
 function generateElevationWalls(data, elevation) {
     var t1 = Date.now();
     var walls = {};
@@ -46,6 +95,13 @@ function generateElevationWalls(data, elevation) {
     return walls;
 }
 
+/**
+ * Sets elevation walls from a pre-computed dataset
+ * 
+ * @param {Object} obj - Target object to receive the elevation walls
+ * @param {Array} data - Array of elevation data
+ * @param {number} elevation - Elevation index to use from the data array
+ */
 function setElevationWalls(obj, data, elevation) {
     for (var i = 0; i < data[elevation].length; i++) {
         var el = data[elevation][i];
@@ -53,6 +109,14 @@ function setElevationWalls(obj, data, elevation) {
     }
 }
 
+/**
+ * Sets wall data in the target object
+ * 
+ * @param {Object} obj - Target object to receive the wall data
+ * @param {Object} data - Source data containing wall positions
+ * @param {string} [id='wall'] - Identifier for the wall type
+ * @param {number} [r=Math.SQRT2/2] - Radius of the wall object
+ */
 function setWalls(obj, data, id, r) {
     id = id || 'wall';
     r = r || (Math.SQRT2 / 2);
@@ -61,6 +125,16 @@ function setWalls(obj, data, id, r) {
     }
 }
 
+/**
+ * Sets tree walls based on tree data, considering elevation and tree state
+ * 
+ * @param {Object} obj - Target object to receive the tree walls
+ * @param {number} elevation - Current elevation for visibility calculation
+ * @param {Object} tree - Map of tree positions
+ * @param {Object} tree_elevations - Map of tree elevations
+ * @param {Object} tree_state - Map of tree states (standing or cut)
+ * @param {Object} tree_blocks - Map of tree blocking areas
+ */
 function setTreeWalls(obj, elevation, tree, tree_elevations, tree_state, tree_blocks) {
     for (var i in tree) {
         if (elevation < tree_elevations[i]) {
@@ -75,12 +149,35 @@ function setTreeWalls(obj, elevation, tree, tree_elevations, tree_state, tree_bl
     }
 }
 
+/**
+ * Parses an image using the ImageHandler to extract map data
+ * 
+ * @param {ImageHandler} imageHandler - Handler for the image data
+ * @param {number} offset - X offset in the image to start scanning from
+ * @param {number} width - Width of the area to scan
+ * @param {number} height - Height of the area to scan
+ * @param {Function} pixelHandler - Function to process each pixel's data
+ * @returns {Object} Grid object with the processed data
+ */
 function parseImage(imageHandler, offset, width, height, pixelHandler) {
     var grid = {};
     imageHandler.scan(offset, width, height, pixelHandler, grid);
     return grid;
 }
 
+/**
+ * VisionSimulation class for Dota 2
+ * Simulates the field of view and visibility mechanics from the game
+ * 
+ * @constructor
+ * @param {Object} worlddata - World boundaries for the map
+ * @param {number} worlddata.worldMinX - Minimum X coordinate of the world
+ * @param {number} worlddata.worldMinY - Minimum Y coordinate of the world
+ * @param {number} worlddata.worldMaxX - Maximum X coordinate of the world
+ * @param {number} worlddata.worldMaxY - Maximum Y coordinate of the world
+ * @param {Object} [opts] - Optional configuration settings
+ * @param {number} [opts.radius] - Vision radius in grid tiles (default: 1600/64)
+ */
 function VisionSimulation(worlddata, opts) {
     var self = this;
     
@@ -96,13 +193,36 @@ function VisionSimulation(worlddata, opts) {
     this.gridHeight = this.worldHeight / 64 + 1;
     this.ready = false;
 
+    /**
+     * Callback function that determines if light passes through a cell
+     * Used by the ROT.js FOV calculation
+     * 
+     * @param {number} x - X coordinate to check
+     * @param {number} y - Y coordinate to check
+     * @returns {boolean} True if light can pass through this cell
+     * @private
+     */
     this.lightPassesCallback = function (x, y) {
         var key = x + ',' + y;
         return !(key in self.elevationWalls[self.elevation]) && !(key in self.ent_fow_blocker_node) && !(key in self.treeWalls[self.elevation] && self.treeWalls[self.elevation][key].length > 0) ;
     }
     
+    /**
+     * Field of view calculator using precise shadowcasting
+     * @type {ROT.FOV.PreciseShadowcasting}
+     * @private
+     */
     this.fov = new ROT.FOV.PreciseShadowcasting(this.lightPassesCallback, {topology:8});
 }
+
+/**
+ * Initializes the vision simulation with map data
+ * Loads and processes the map image to extract terrain information
+ * 
+ * @param {string} mapDataImagePath - Path to the map data image
+ * @param {Function} onReady - Callback executed when initialization is complete
+ * @param {Error} onReady.err - Error object if initialization fails, null on success
+ */
 VisionSimulation.prototype.initialize = function (mapDataImagePath, onReady) {
     var self = this;
     this.ready = false;
@@ -159,12 +279,31 @@ VisionSimulation.prototype.initialize = function (mapDataImagePath, onReady) {
     });
 }
 
+/**
+ * Handler for black pixels in the map data image
+ * Used to identify navigation blockers, FOW blockers, and no-ward areas
+ * 
+ * @param {number} x - X coordinate in the image
+ * @param {number} y - Y coordinate in the image
+ * @param {Array<number>} p - RGB values of the pixel
+ * @param {Object} grid - Target grid to store the result
+ */
 VisionSimulation.prototype.blackPixelHandler = function (x, y, p, grid) {
     var pt = this.ImageXYtoGridXY(x, y);
     if (p[0] === 0) {
         grid[pt.x + "," + pt.y] = pt;
     }
 }
+
+/**
+ * Handler for elevation pixels in the map data image
+ * Extracts elevation data from pixel brightness values
+ * 
+ * @param {number} x - X coordinate in the image
+ * @param {number} y - Y coordinate in the image
+ * @param {Array<number>} p - RGB values of the pixel
+ * @param {Object} grid - Target grid to store the result
+ */
 VisionSimulation.prototype.elevationPixelHandler = function (x, y, p, grid) {
     var pt = this.ImageXYtoGridXY(x, y);
     pt.z = p[0];
@@ -173,6 +312,16 @@ VisionSimulation.prototype.elevationPixelHandler = function (x, y, p, grid) {
         this.elevationValues.push(p[0]);
     }
 }
+
+/**
+ * Handler for tree elevation pixels in the map data image
+ * Extracts tree positions and their elevation data
+ * 
+ * @param {number} x - X coordinate in the image
+ * @param {number} y - Y coordinate in the image
+ * @param {Array<number>} p - RGB values of the pixel
+ * @param {Object} grid - Target grid to store the result
+ */
 VisionSimulation.prototype.treeElevationPixelHandler = function (x, y, p, grid) {
     var self = this;
     var pt = this.ImageXYtoGridXY(x, y);
@@ -196,6 +345,15 @@ VisionSimulation.prototype.treeElevationPixelHandler = function (x, y, p, grid) 
         });
     }
 }
+
+/**
+ * Updates the visibility from a specific grid position
+ * Calculates which cells are visible from the given coordinates
+ * 
+ * @param {number} gX - X coordinate in the grid
+ * @param {number} gY - Y coordinate in the grid
+ * @param {number} [radius] - Vision radius, defaults to the instance's radius setting
+ */
 VisionSimulation.prototype.updateVisibility = function (gX, gY, radius) {
     var self = this,
         key = xy2key(gX, gY);
@@ -230,6 +388,17 @@ VisionSimulation.prototype.updateVisibility = function (gX, gY, radius) {
     this.lightArea = Object.keys(this.lights).length;
 }
 
+/**
+ * Checks if a grid position is valid based on various criteria
+ * Can check for gridnav blockers, ward placement restrictions, and tree blockers
+ * 
+ * @param {number} x - X coordinate in the grid
+ * @param {number} y - Y coordinate in the grid
+ * @param {boolean} [bCheckGridnav=false] - Whether to check if position is blocked by gridnav
+ * @param {boolean} [bCheckToolsNoWards=false] - Whether to check if ward placement is restricted
+ * @param {boolean} [bCheckTreeState=false] - Whether to check if position is blocked by trees
+ * @returns {boolean} True if the position is valid based on all specified criteria
+ */
 VisionSimulation.prototype.isValidXY = function (x, y, bCheckGridnav, bCheckToolsNoWards, bCheckTreeState) {
     if (!this.ready) return false;
     
@@ -250,6 +419,14 @@ VisionSimulation.prototype.isValidXY = function (x, y, bCheckGridnav, bCheckTool
     return x >= 0 && x < this.gridWidth && y >= 0 && y < this.gridHeight && (!bCheckGridnav || !this.gridnav[key]) && (!bCheckToolsNoWards || !this.tools_no_wards[key]) && (!bCheckTreeState || !treeBlocking);
 }
 
+/**
+ * Toggles the state of a tree at the specified grid coordinates
+ * Trees can be standing (blocking vision) or cut down (not blocking)
+ * 
+ * @param {number} x - X coordinate in the grid
+ * @param {number} y - Y coordinate in the grid
+ * @returns {boolean} True if there was a tree at the position that was toggled
+ */
 VisionSimulation.prototype.toggleTree = function (x, y) {
     var self = this;
     var key = xy2key(x, y);
@@ -281,9 +458,24 @@ VisionSimulation.prototype.toggleTree = function (x, y) {
 
     return isTree;
 }
+
+/**
+ * Sets the vision radius for the simulation
+ * 
+ * @param {number} r - New radius value in grid tiles
+ */
 VisionSimulation.prototype.setRadius = function (r) {
     this.radius = r;
 }
+
+/**
+ * Converts world coordinates to grid coordinates
+ * 
+ * @param {number} wX - X coordinate in world space
+ * @param {number} wY - Y coordinate in world space
+ * @param {boolean} [bNoRound=false] - Whether to return exact coordinates or round to integers
+ * @returns {Object} Point object with grid coordinates
+ */
 VisionSimulation.prototype.WorldXYtoGridXY = function (wX, wY, bNoRound) {
     var x = (wX - this.worldMinX) / 64,
         y = (wY - this.worldMinY) / 64;
@@ -293,24 +485,59 @@ VisionSimulation.prototype.WorldXYtoGridXY = function (wX, wY, bNoRound) {
     }
     return {x: x, y: y, key: x + ',' + y};
 }
+
+/**
+ * Converts grid coordinates to world coordinates
+ * 
+ * @param {number} gX - X coordinate in the grid
+ * @param {number} gY - Y coordinate in the grid
+ * @returns {Object} Point object with world coordinates
+ */
 VisionSimulation.prototype.GridXYtoWorldXY = function (gX, gY) {
     return {x: gX * 64 + this.worldMinX, y: gY * 64 + this.worldMinY};
 }
 
+/**
+ * Converts grid coordinates to image coordinates
+ * Accounts for the y-axis flip between grid and image space
+ * 
+ * @param {number} gX - X coordinate in the grid
+ * @param {number} gY - Y coordinate in the grid
+ * @returns {Object} Point object with image coordinates
+ */
 VisionSimulation.prototype.GridXYtoImageXY = function (gX, gY) {
     return {x: gX, y: this.gridHeight - gY - 1};
 }
 
+/**
+ * Converts image coordinates to grid coordinates
+ * Accounts for the y-axis flip between image and grid space
+ * 
+ * @param {number} x - X coordinate in the image
+ * @param {number} y - Y coordinate in the image
+ * @returns {Object} Point object with grid coordinates and key
+ */
 VisionSimulation.prototype.ImageXYtoGridXY = function (x, y) {
     var gY = this.gridHeight - y - 1;
     return {x: x, y: gY, key: x + ',' + gY};
 }
 
+/**
+ * Converts world coordinates to image coordinates
+ * Combines WorldXYtoGridXY and GridXYtoImageXY conversions
+ * 
+ * @param {number} wX - X coordinate in world space
+ * @param {number} wY - Y coordinate in world space
+ * @returns {Object} Point object with image coordinates
+ */
 VisionSimulation.prototype.WorldXYtoImageXY = function (wX, wY) {
     var pt = this.WorldXYtoGridXY(wX, wY);
     return this.GridXYtoImageXY(pt.x, pt.y);
 }
 
+/**
+ * Expose the utility functions as methods on the VisionSimulation prototype
+ */
 VisionSimulation.prototype.key2pt = key2pt;
 VisionSimulation.prototype.xy2key = xy2key;
 VisionSimulation.prototype.xy2pt = xy2pt;
