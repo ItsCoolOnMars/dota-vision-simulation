@@ -4,7 +4,7 @@ This project provides a precise simulation of Dota 2's vision mechanics, includi
 
 This project is a fork of [dota-vision-simulation](https://github.com/devilesk/dota-vision-simulation)
 
-![Dota 2 Vision Simulation Demo](https://i.imgur.com/example.gif)
+![Dota 2 Vision Simulation Demo](https://i.imgur.com/2wlm1FN.mp4)
 
 ## Features
 
